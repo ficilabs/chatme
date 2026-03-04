@@ -1,8 +1,6 @@
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain.memory import ConversationBufferMemory
-from langchain.chains import ConversationChain
 
 load_dotenv()
 
@@ -15,20 +13,24 @@ system_prompt = """You are a helpful and friendly AI assistant.
 You provide clear, concise, and accurate responses.
 Always be respectful and professional."""
 
-# Initialize conversation memory
-memory = ConversationBufferMemory()
+# Conversation history for multi-turn conversation
+conversation_history = []
 
-# Create conversation chain with memory
-conversation = ConversationChain(
-    llm=llm,
-    memory=memory,
-    system_prompt=system_prompt
-)
-
-# Chat history for multi-turn conversation
 def chat(user_input):
-    response = conversation.invoke({"input": user_input})
-    return response["response"]
+    """Send a message and get a response while maintaining conversation history."""
+    # Add user message to history
+    conversation_history.append(HumanMessage(content=user_input))
+    
+    # Create messages list with system prompt
+    messages = [SystemMessage(content=system_prompt)] + conversation_history
+    
+    # Get response from LLM
+    response = llm.invoke(messages)
+    
+    # Add assistant response to history
+    conversation_history.append(response)
+    
+    return response.content
 
 # Example conversation
 print(chat("siapa kamu?"))
