@@ -1,48 +1,91 @@
-from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+"""FastAPI application for the ChatBot."""
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from chatbot import ChatBot
+from config import API_TITLE, API_DESCRIPTION, API_VERSION
 
-load_dotenv()
-
-llm = ChatOpenAI(
-    model="mistralai/mixtral-8x7b-instruct",
-    base_url="https://openrouter.ai/api/v1"
+# Initialize FastAPI app
+app = FastAPI(
+    title=API_TITLE,
+    description=API_DESCRIPTION,
+    version=API_VERSION
 )
 
-system_prompt = """You are ChatMe, a friendly and intelligent AI assistant.
-Your name is ChatMe. You were created to help users with all kinds of questions.
-IMPORTANT: You MUST always respond in Bahasa Indonesia (Indonesian language). 
-Never respond in Dutch, English, or any other language. Only Bahasa Indonesia.
-Give detailed, personal, and enthusiastic answers.
-Remember the context of previous conversations and refer back to them when relevant."""
+# Initialize ChatBot instance
+chatbot = ChatBot()
 
-# Conversation history for multi-turn conversation
-conversation_history = []
 
-def chat(user_input):
-    """Send a message and get a response while maintaining conversation history."""
-    # Add user message to history
-    conversation_history.append(HumanMessage(content=user_input))
+# Request/Response Models
+class MessageRequest(BaseModel):
+    """Request model for chat messages."""
+    message: str
+
+
+class MessageResponse(BaseModel):
+    """Response model for chat messages."""
+    response: str
+
+
+class HistoryResponse(BaseModel):
+    """Response model for conversation history."""
+    history: list
+
+
+# Health check endpoint
+@app.get("/", tags=["Health"])
+def health_check():
+    """Health check endpoint."""
+    return {"status": "ok", "message": "ChatBot API is running"}
+
+
+# Chat endpoint
+@app.post("/chat", response_model=MessageResponse, tags=["Chat"])
+def chat(request: MessageRequest):
+    """
+    Send a message to the chatbot and get a response.
     
-    # Create messages list with system prompt + full history
-    messages = [SystemMessage(content=system_prompt)] + conversation_history
+    Args:
+        request: The message request containing the user's message
+        
+    Returns:
+        The chatbot's response
+        
+    Raises:
+        HTTPException: If the message is empty
+    """
+    if not request.message or not request.message.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
     
-    # Get response from LLM
-    response = llm.invoke(messages)
-    
-    # Add assistant response to history
-    conversation_history.append(AIMessage(content=response.content))
-    
-    return response.content
+    try:
+        response = chatbot.chat(request.message)
+        return MessageResponse(response=response)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing message: {str(e)}")
 
-# Example conversation
-print("User: siapa kamu?")
-print("Bot:", chat("siapa kamu?"))
-print()
 
-print("User: apa nama kamu?")
-print("Bot:", chat("apa nama kamu?"))
-print()
+# Clear history endpoint
+@app.post("/clear", tags=["Chat"])
+def clear_history():
+    """Clear the conversation history."""
+    chatbot.clear_history()
+    return {"message": "Conversation history cleared"}
 
-print("User: apa yang kami bicarakan tadi?")
-print("Bot:", chat("apa yang kami bicarakan tadi?"))
+
+# Get history endpoint
+@app.get("/history", response_model=HistoryResponse, tags=["Chat"])
+def get_history():
+    """Get the conversation history."""
+    history = chatbot.get_history()
+    formatted_history = [
+        {
+            "role": "user" if hasattr(msg, "content") and msg.__class__.__name__ == "HumanMessage" else "assistant",
+            "content": msg.content if hasattr(msg, "content") else str(msg)
+        }
+        for msg in history
+    ]
+    return HistoryResponse(history=formatted_history)
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
