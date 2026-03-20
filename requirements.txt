@@ -1,7 +1,20 @@
+# Core
 langchain
 langchain-openai
 langchain-community
 python-dotenv
 openai
+
+# API
 fastapi
-uvicorn
+uvicorn[standard]
+gunicorn
+pydantic>=2.0
+
+# Upstash Redis
+upstash-redis
+
+# Testing
+pytest
+pytest-asyncio
+httpx

@@ -1,212 +1,130 @@
-# ChatMe - Chatbot API
+# ChatMe API v4
 
-A refactored chatbot application built with **LangChain** and **FastAPI**, providing a clean, maintainable, and well-documented API for multi-turn conversations.
+Portfolio chatbot API powered by **LangChain**, **FastAPI**, and **Upstash Redis**.
 
 ## Project Structure
 
 ```
 chatme/
-├── main.py          # FastAPI application with API endpoints
-├── config.py        # Configuration and settings
-├── chatbot.py       # Core ChatBot logic and conversation management
-├── requirements.txt # Python dependencies
-└── README.md        # This file
+├── main.py                   # App init, middleware, router registration (~50 lines)
+├── chatbot.py                # Stateless LLM wrapper (LangChain)
+│
+├── core/
+│   ├── config.py             # All settings (env-var overridable)
+│   ├── session_store.py      # Upstash Redis store + in-memory fallback
+│   └── dependencies.py       # FastAPI Depends() providers
+│
+├── routers/
+│   ├── chat.py               # POST /chat  GET /history  POST /clear
+│   ├── session.py            # GET /session  DELETE /session
+│   └── health.py             # GET /  GET /stats
+│
+├── schemas/
+│   └── chat.py               # All Pydantic request/response models
+│
+├── services/
+│   └── chat_service.py       # Business logic (LLM call, session ops, hooks)
+│
+├── tests/
+│   └── test_chat_service.py  # Unit + API smoke tests
+│
+├── nginx/
+│   └── nginx.conf            # Rate limiting, TLS, CORS headers
+│
+├── Dockerfile                # Multi-stage production build
+├── docker-compose.yml        # API + Nginx stack
+├── requirements.txt
+└── .env.example
 ```
 
-## Setup Instructions
+## Setup
 
-### 1. Install Dependencies
-
+### 1. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Configure Environment
-
-Create a `.env` file in the root directory with your API credentials:
-
-```env
-OPENAI_API_KEY=your_api_key_here
+### 2. Configure environment
+```bash
+cp .env.example .env
+# Fill in OPENAI_API_KEY, UPSTASH_REDIS_URL, UPSTASH_REDIS_TOKEN
 ```
 
-### 3. Run the Application
-
+### 3. Run (development)
 ```bash
 python main.py
+# or
+uvicorn main:app --reload
 ```
 
-The API will be available at `http://localhost:8000`
-
-## API Documentation
-
-### Interactive API Docs
-Once the server is running, visit:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
-### Endpoints
-
-#### 1. Health Check
-```
-GET /
-```
-Check if the API is running.
-
-**Response:**
-```json
-{
-  "status": "ok",
-  "message": "ChatBot API is running"
-}
+### 4. Run (production)
+```bash
+docker compose up -d --build
 ```
 
-#### 2. Send a Message
-```
-POST /chat
-```
-Send a message to the chatbot and get a response.
+API available at `http://localhost:8000`  
+Swagger docs at `http://localhost:8000/docs`
 
-**Request:**
-```json
-{
-  "message": "siapa kamu?"
-}
-```
+---
 
-**Response:**
-```json
-{
-  "response": "Saya adalah asisten AI yang helpful dan friendly..."
-}
-```
+## API Endpoints
 
-#### 3. Get Conversation History
-```
-GET /history
-```
-Retrieve the entire conversation history.
+| Method   | Path       | Description                              |
+|----------|------------|------------------------------------------|
+| `GET`    | `/`        | Health check + Redis status              |
+| `GET`    | `/stats`   | Active sessions, store type              |
+| `POST`   | `/chat`    | Send message, get reply                  |
+| `GET`    | `/history` | Get conversation history                 |
+| `POST`   | `/clear`   | Clear history, keep session alive        |
+| `GET`    | `/session` | Session metadata                         |
+| `DELETE` | `/session` | Delete session permanently               |
 
-**Response:**
-```json
-{
-  "history": [
-    {
-      "role": "user",
-      "content": "siapa kamu?"
-    },
-    {
-      "role": "assistant",
-      "content": "Saya adalah asisten AI..."
-    }
-  ]
-}
+All session endpoints require `X-Session-Id` header.  
+`POST /chat` creates a new session automatically if no header is sent.
+
+---
+
+## Session Flow
+
+```
+1. POST /chat  (no header)
+   → Response: { "response": "...", "session_id": "abc-123" }
+
+2. POST /chat  (X-Session-Id: abc-123)
+   → Bot remembers previous messages
+
+3. GET /history  (X-Session-Id: abc-123)
+   → Full conversation log
+
+4. DELETE /session  (X-Session-Id: abc-123)
+   → Session removed from Redis
 ```
 
-#### 4. Clear Conversation History
-```
-POST /clear
-```
-Clear the conversation history.
+---
 
-**Response:**
-```json
-{
-  "message": "Conversation history cleared"
-}
-```
+## How to Add a New Feature
 
-## Usage Examples
+### Add a new endpoint
+1. Create `routers/your_feature.py` with an `APIRouter`
+2. Add business logic in `services/your_service.py`
+3. Add schemas in `schemas/your_schema.py`
+4. Register in `main.py`: `app.include_router(your_feature.router)`
 
-### Using cURL
+### Swap the LLM
+Edit `chatbot.py` — `ChatService` and all routers are unaffected.
+
+### Add RAG retrieval
+In `services/chat_service.py`, the `send_message()` method has a marked
+hook comment — inject your retriever there. Nothing else needs to change.
+
+### Add authentication
+Create a `core/auth.py` with a `Depends()` function, then add it to any
+router that needs protection. The service layer stays untouched.
+
+---
+
+## Running Tests
 
 ```bash
-# Health check
-curl http://localhost:8000/
-
-# Send a message
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "siapa kamu?"}'
-
-# Get history
-curl http://localhost:8000/history
-
-# Clear history
-curl -X POST http://localhost:8000/clear
+pytest tests/ -v
 ```
-
-### Using Python
-
-```python
-import requests
-
-BASE_URL = "http://localhost:8000"
-
-# Send a message
-response = requests.post(
-    f"{BASE_URL}/chat",
-    json={"message": "apa kabar?"}
-)
-print(response.json())
-
-# Get history
-history_response = requests.get(f"{BASE_URL}/history")
-print(history_response.json())
-
-# Clear history
-clear_response = requests.post(f"{BASE_URL}/clear")
-print(clear_response.json())
-```
-
-## Architecture
-
-### ChatBot Class (`chatbot.py`)
-- Encapsulates all conversation logic
-- Manages conversation history
-- Provides clean interface for chat operations
-
-### Configuration (`config.py`)
-- Centralized configuration management
-- Easy to modify LLM settings, prompts, and API settings
-- Environment-based configuration support
-
-### FastAPI Application (`main.py`)
-- RESTful API endpoints
-- Input validation using Pydantic models
-- Error handling and HTTP exception management
-- Auto-generated API documentation
-
-## Benefits of This Architecture
-
-✅ **Modularity** - Separate concerns (config, chatbot logic, API)  
-✅ **Maintainability** - Easy to modify and extend  
-✅ **Scalability** - Ready for production deployment  
-✅ **Documentation** - Auto-generated API docs with Swagger UI  
-✅ **Testing** - Easy to unit test individual components  
-✅ **Reusability** - ChatBot class can be used independently  
-
-## Customization
-
-### Change the LLM Model
-Edit `config.py`:
-```python
-LLM_MODEL = "your-model-name"
-LLM_BASE_URL = "your-api-base-url"
-```
-
-### Modify System Prompt
-Edit `config.py`:
-```python
-SYSTEM_PROMPT = "Your custom system prompt here"
-```
-
-### Add More Endpoints
-Add new functions in `main.py` with the `@app.get()` or `@app.post()` decorators.
-
-## Technologies Used
-
-- **LangChain** - LLM framework for conversation management
-- **FastAPI** - Modern Python web framework
-- **Uvicorn** - ASGI server
-- **Pydantic** - Data validation
-- **python-dotenv** - Environment variable management
