@@ -8,13 +8,22 @@ load_dotenv()
 LLM_MODEL        = os.getenv("LLM_MODEL",        "mistralai/mixtral-8x7b-instruct")
 LLM_BASE_URL     = os.getenv("LLM_BASE_URL",     "https://openrouter.ai/api/v1")
 LLM_TEMPERATURE  = float(os.getenv("LLM_TEMPERATURE", "0.7"))
-LLM_MAX_TOKENS   = int(os.getenv("LLM_MAX_TOKENS",    "1024"))
+LLM_MAX_TOKENS   = int(os.getenv("LLM_MAX_TOKENS",    "150"))
 
 # ── Upstash Redis ─────────────────────────────────────────────────────────────
 UPSTASH_REDIS_URL   = os.getenv("UPSTASH_REDIS_URL",   "https://flying-hawk-77949.upstash.io")
 UPSTASH_REDIS_TOKEN = os.getenv("UPSTASH_REDIS_TOKEN", "gQAAAAAAATB9AAIncDJjNGE4NzU4MmU2NmU0ZTBkOTcwZDZiOWE3ZTFiNDM5OHAyNzc5NDk")
 SESSION_TTL_SECONDS  = int(os.getenv("SESSION_TTL_SECONDS",  str(60 * 60)))
 MAX_HISTORY_MESSAGES = int(os.getenv("MAX_HISTORY_MESSAGES", "50"))
+
+# ── Qdrant ────────────────────────────────────────────────────────────────────
+QDRANT_URL        = os.getenv("QDRANT_URL",        "")
+QDRANT_API_KEY    = os.getenv("QDRANT_API_KEY",    "")
+QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "chatme")
+
+# ── Retriever ─────────────────────────────────────────────────────────────────
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+RETRIEVER_TOP_K = int(os.getenv("RETRIEVER_TOP_K", "3"))
 
 # ── API ───────────────────────────────────────────────────────────────────────
 API_TITLE       = "ChatMe API"

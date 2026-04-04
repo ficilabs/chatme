@@ -17,6 +17,9 @@ from typing import Optional
 from chatbot import ChatBot
 from core.session_store import BaseSessionStore, SessionData
 
+from services.retriever_service import RetrieverService
+from core.vector_store import get_qdrant_client
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,6 +27,7 @@ class ChatService:
     def __init__(self, store: BaseSessionStore, bot: ChatBot) -> None:
         self.store = store
         self.bot   = bot
+        self.retriever = RetrieverService(get_qdrant_client())
 
     # ── Session helpers ───────────────────────────────────────────────────────
 
@@ -58,27 +62,32 @@ class ChatService:
     # ── Chat operations ───────────────────────────────────────────────────────
 
     async def send_message(
-        self, message: str, session_id: Optional[str]
+        self, message: str, session_id: str | None
     ) -> tuple[str, str]:
-        """
-        Process one user message.
-        Returns (reply, session_id).
-
-        This is the place to add RAG retrieval, content filtering,
-        usage logging, etc. — without touching the router.
-        """
         sid, session_data = await self.get_or_create_session(session_id)
 
-        # ── Future hook: inject RAG context into message here ──────────────
-        # context = await retriever.fetch(message)
-        # augmented = f"{context}\n\nUser: {message}"
+        # ── RAG retrieval ────────────────────────────────────────────────
+        context = await self.retriever.retrieve(message)
 
-        reply, updated_history = await self.bot.chat(message, session_data.history)
+        if context:
+            augmented = (
+                "Berikut informasi relevan tentang Moh Rofiqi dari knowledge base:\n\n"
+                f"{context}\n\n"
+                "---\n"
+                f"Pertanyaan user: {message}"
+            )
+        else:
+            # Tidak ada context relevan — jawab dari system prompt saja
+            augmented = message
+        # ─────────────────────────────────────────────────────────────────
+
+        reply, updated_history = await self.bot.chat(augmented, session_data.history)
 
         session_data.history = updated_history
         await self.store.save(sid, session_data)
 
-        logger.info("session=%s  msgs=%d", sid, session_data.message_count)
+        logger.info("session=%s  msgs=%d  context_found=%s",
+                    sid, session_data.message_count, bool(context))
         return reply, sid
 
     async def get_history(self, session_id: str) -> tuple[list[dict], int]:
