@@ -20,5 +20,5 @@ pytest-asyncio
 httpx
 
 #qdrant
-qdrant-client 
-sentence-transformers
+qdrant-client
+fastembed

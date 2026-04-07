@@ -22,12 +22,12 @@ QDRANT_API_KEY    = os.getenv("QDRANT_API_KEY",    "")
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "chatme")
 
 # ── Retriever ─────────────────────────────────────────────────────────────────
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL","BAAI/bge-small-en-v1.5")
 RETRIEVER_TOP_K = int(os.getenv("RETRIEVER_TOP_K", "3"))
 
 # ── API ───────────────────────────────────────────────────────────────────────
 API_TITLE       = "ChatMe API"
-API_DESCRIPTION = "Portfolio chatbot API powered by LangChain, FastAPI, and Upstash Redis"
+API_DESCRIPTION = "Portfolio chatbot API powered by LangChain, FastAPI, Qdrant and Upstash Redis"
 API_VERSION     = "4.0.0"
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
