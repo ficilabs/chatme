@@ -18,3 +18,7 @@ upstash-redis
 pytest
 pytest-asyncio
 httpx
+
+#qdrant
+qdrant-client 
+sentence-transformers
